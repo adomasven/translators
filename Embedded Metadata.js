@@ -9,7 +9,7 @@
 	"inRepository": true,
 	"translatorType": 4,
 	"browserSupport": "gcsibv",
-	"lastUpdated": "2017-10-03 01:32:00"
+	"lastUpdated": "2017-10-09 02:41:00"
 }
 
 /*
@@ -209,12 +209,40 @@ function completeItem(doc, newItem) {
 	newItem.complete();
 }
 
+/**
+ * This is a short-term hacky solution to make EM the generic translator.
+ *
+ * After running init() if _itemType == undefined it means EM can only
+ * capture (somewhat) low quality metadata. If there are no translators with lower priority
+ * that detect any metadata then EM detectWeb should return "webpage", otherwise
+ * return undefined and let lower priority translators overtake.
+ *
+ * See discussion https://github.com/zotero/translators/issues/1092
+ *
+ * N.B. this function needs to check *ALL* translators with lower priority than EM
+ * and ensure that `false` is passed back as a callback if any one of them detects
+ * metadata, otherwise EM with low quality translation will overshadow them
+ */
+function checkLowerPriorityTranslators(doc, url, callback) {
+	if (_itemType != undefined) return callback(_itemType);
+	
+	var translate = Zotero.loadTranslator("web");
+	// DOI
+	translate.setTranslator("c159dcfe-8a53-4301-a499-30f6549c340d");
+	translate.getTranslatorObject(function(translator) {
+		if (!translator.detectWeb(doc, url)) {
+			return callback('webpage');
+		}
+		callback(false);
+	});
+}
+
 function detectWeb(doc, url) {
 	//blacklist wordpress jetpack comment plugin so it doesn't override other metadata
 	if (url.indexOf("jetpack.wordpress.com/jetpack-comment/")!=-1) return false;
 	if(exports.itemType) return exports.itemType;
 
-	init(doc, url, Zotero.done);
+	init(doc, url, checkLowerPriorityTranslators.bind(this, doc, url, Zotero.done));
 }
 
 function init(doc, url, callback, forceLoadRDF) {
